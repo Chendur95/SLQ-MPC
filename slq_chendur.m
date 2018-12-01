@@ -1,37 +1,30 @@
-clc
-clear all
-close all
-load('control_input.mat');
-load('states_pendulum.mat'); 
-dt=0.025; 
-n_steps=numel(u);
+function u_ret = slq_chendur(x_des, u_des, x_st, Qf, K_lqr, Q, R, n_steps, dt)
 
-x_des= store;
-u_des=u;
-%hold on; 
-x_init =[0;0]; 
-u_nom = 2*u_des; 
-
-Q = 50*eye(2); 
-R = 1;  
-Qf = 100*eye(2); 
 P_tplus = Qf;                % P at time=10 
 p_tplus = [10;10]; %P*x_nom(end,:)';
 B = [0;1];
-q = ones(200,2)';    
-r = ones(200,1);      
-u_max = 1.99; 
+q = ones(n_steps,2)';    
+r = ones(n_steps,1);      
+u_max = 2.5;
+u_min = -1.5;
 
 del_l=999;
 l=zeros(n_steps,1);
 
 slq_tol = 0.05; 
 iter =0;
+
+u_nom = zeros(n_steps,1); 
+
+for i=1:1:n_steps
+   u_nom(i) = K_lqr*(x_des(:,i) - x_st);
+end
+
 while(iter<80 && del_l >= slq_tol)
-    iter = iter +1
+    iter = iter +1;
     l_old = l; 
-    x_curr =[0;0]; 
-    x_nom(:,1) = [0;0]; 
+    x_curr = x_st; 
+    x_nom(:,1) = x_st; 
 
     for i=2:(n_steps+1)       % If we have 100 u_nom values then till 101       
         xdot = dynamics(x_curr, u_nom(i-1))'; 
@@ -39,11 +32,9 @@ while(iter<80 && del_l >= slq_tol)
         x_curr = x_nom(:,i);
     end
 
-    plot(x_nom(1,:),x_nom(2,:),'b.-'); 
-   % hold all; 
-    for t = n_steps:-1:1
+    for t = (n_steps):-1:1
     
-        u = u_nom(t); 
+        %u = u_nom(t); 
         A = findA(t,x_nom); 
     
         H = R + B'*P_tplus*B;   %scalar
@@ -68,31 +59,29 @@ while(iter<80 && del_l >= slq_tol)
     Pf = P(:,:,tt); 
     
     % LINEAR SEARCH - U_NOM - UPDATED 
-    x_new(:,1) = x_init; 
+    x_new(:,1) = x_st; 
     x_curr = x_new(:,1); 
     J_new = Inf; 
-    J_now = computeCost(pf,Pf,q,Q,R,r, x_nom, u_nom , x_des, u_des); 
+    J_now = computeCost(pf,Pf,q,Q,R,r, x_nom, u_nom , x_des, u_des, n_steps); 
     uiter =0; 
     
     alpha = 2; 
     alpha_d = 10 ;
-    %del_J = -10;  %Just to enter the loop 
     
-    while(uiter<100 && J_new>J_now)
+    while(uiter<=100 && J_new>J_now)
         uiter = uiter+1; 
-        x_curr = x_init; 
+        x_curr = x_st; 
         for rr =1:1:n_steps
 
             u_upd(rr) = u_nom(rr) + alpha*l(rr) + K(rr,:)*(x_des(:,rr)-x_nom(:,rr)); 
             
             if u_upd(rr)>=u_max
                 u_upd(rr)=u_max;
-            elseif u_upd(rr)<=-u_max
-                u_upd(rr)=-u_max;
+            elseif u_upd(rr)<=u_min
+                u_upd(rr)=u_min;
             end
             
             xdot = dynamics(x_curr, u_upd(rr))';
-
             x_new(:,rr+1) = x_curr + xdot*dt; 
             x_curr = x_new(:,rr+1); 
             a = 1; 
@@ -101,22 +90,18 @@ while(iter<80 && del_l >= slq_tol)
         % J COMPUTE 
         Ptt = P(:,:,tt); %Send the last Pf value to find cost
         ptt = p(:,tt); 
-        J_new = computeCost(ptt,Ptt,q,Q,R,r, x_new, u_upd, x_des, u_des) ;
+        J_new = computeCost(ptt,Ptt,q,Q,R,r, x_new, u_upd, x_des, u_des, n_steps) ;
         alpha = alpha/alpha_d; 
-      %  u_nom = u_upd; 
     end
-    J_new
-    del_J = J_new - J_now 
-    del_l=norm(l_old-l,2)
+    del_J = J_new - J_now ;
+    del_l=norm(l_old-l,2);
     u_nom = u_upd; 
-    pause
 end
-hold on;
-    plot(x_des(1,:),x_des(2,:),'r.-');
-
+u_ret = u_nom; 
+end
 %% Func to compute cost 
 
-function Jcost = computeCost(p,P,q,Q,R,r,x_nom,u_nom, x_des, u_des)
+function Jcost = computeCost(p,P,q,Q,R,r,x_nom,u_nom, x_des, u_des, n_steps)
 
 % Compute h
 xf_del = -(x_nom(:,end) - x_des(:,end)); 
@@ -124,12 +109,11 @@ h_cost = xf_del'*p + 0.5*xf_del'*P*xf_del;
 
 % Compute L
 L_cost = 0; 
-for t=1:200
+for t=1:n_steps
     u_del = (u_des(t) - u_nom(t)); 
     x_del = (x_des(:,t) - x_nom(:,t));  
     L_cost = L_cost + x_del'*q(:,t) +u_del'*r(t) + 0.5*x_del'*Q*x_del +u_del'*R*u_del; 
 end
-
 Jcost = h_cost + L_cost; 
 end
 
@@ -146,5 +130,4 @@ function xdot = dynamics(x,u)
 g = 1; l = 1; m = 1; b = 1;
 xdot(:,1) = x(2); 
 xdot(:,2) = -g*sin(x(1))/l - b*x(2)/(m*l*l) + u/(m*l*l); 
-
 end
