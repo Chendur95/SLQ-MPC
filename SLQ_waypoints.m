@@ -1,4 +1,4 @@
-function SLQ
+function SLQ_waypoints
 % Implementation of the SLQ alorithm from Fast nonlinear model predictive
 % contro for unified trajectory optimization and tracking Neunert et al. ICRA 2016
 %
@@ -11,7 +11,7 @@ max_slq_iter=500;
 max_lin_search_iter=100;
 tol=0;iter=0;
 
-slq_tol=0.08;
+slq_tol=0.1;
 cost_tol=5;
 
 load('data_for_Q4.mat');
@@ -31,7 +31,7 @@ u_nom=0.*u_des;
 
 x_0=[0.0 0.0]; % also equal to the first row of the x_nom
 x_goal=[pi,0];
-Qf=90.*eye(2); Q=90.*eye(2);  % we have 2 states so Q vectors are 2X2
+Qf=800.*eye(2); Q=50.*eye(2);  % we have 2 states so Q vectors are 2X2
 R=1;                   % only 1 control so R s are scalars
 P_tf=Qf;p_tf=[1 1];
 % these are matching dimansions from the paper equation
@@ -39,7 +39,7 @@ alpha_d=10;             % linesearch update
 u_max=5.0;
 
 % system_physical_parameters= [1;1;9.8;0.3]; % [mass; length; accln. due to gravity; damping]
-W=5000*eye(2);rho_p=10; t_p= 50; x_wp=[0.33 0.82];
+W=5000*eye(2);rho_p=10; t_p= 80; x_wp=[0.8925, 1.1];
 iter=0;
 
 plot(x_des(:,1),x_des(:,2),'r.-');
@@ -49,20 +49,25 @@ plot(x_wp(1), x_wp(2),'b*','MarkerSize',20);
 del_l=999;        
 del_u=999;
 lt=zeros(n_steps,1); %  || del_l >=  slq_tol ||  
+% 
+% x_des=repmat(x_goal,[numel(theta),1]);
+% u_des=zeros(numel(u_des),1);
+
 while  iter< max_slq_iter  &&  del_l >=  slq_tol 
     l_old=lt;
     u_old=u_nom;
     x_nom=simulate_dynamics(u_nom, x_0,dt); %we do not need a x_nom tape as we generate it here by rollout
-    plot(x_nom(:,1),x_nom(:,2),'b.');
-        pause
+%     plot(x_nom(:,1),x_nom(:,2),'b.');
+%         pause
 %         hold all
     % to calculate updates for r, q
 %     initialize
-    sq=1.*ones(n_steps,1); r=ones(n_steps,1);
-%         for i=1:n_steps
-%             sq(i,:)=2*diag(Q)'*(x_des(i,:)-x_nom(i,:))';
-%             r(i)=dot(2*diag(R),(u_des(i,:)-u_nom(i,:)));
-%         end
+%     sq=1.*ones(n_steps,1); r=ones(n_steps,1);
+   sq=1.*ones(n_steps,1); r=ones(n_steps,1);  q=ones(n_steps,2);
+        for i=1:n_steps
+            q(i,:)=2*(Q)'*(x_des(i,:)-x_nom(i,:))';
+            r(i)=dot(2*diag(R),(u_des(i,:)-u_nom(i,:)));
+        end
     % or change q and r to ones!
     q=ones(n_steps,2); %r=ones(n_steps,1);
     
