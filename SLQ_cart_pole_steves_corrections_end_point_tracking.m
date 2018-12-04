@@ -5,28 +5,32 @@ function SLQ_cart_pole_steves_corrections_end_point_tracking
 %  Psuedocode --> page 1399 of the paper
 % dimensionality check done
 close all
-clear all
+clear  
 
 max_slq_iter=200;
 max_lin_search_iter=40;
 tol=0;iter=0;
 
-slq_tol=50;
+slq_tol=0.5;
 
 
 % The above load x_des and u_des
-% % load('cartPole.mat');
-% load('energy_shaping_lqr_trajectory_cart_pole.mat');
+ 
+load('energy_shaping_lqr_trajectory_cart_pole.mat');
 % % dt=0.01;
 % x_0=[0.0000 0.000 0.000 0.000].*1; % n_steps=1879;
+% 
+
 load('cartPole.mat');load('u_cartPole.mat'); dt=0.01; x_0=[0.0500 0.050 0.050 0.050];  n_steps=1879;
 
+ 
 % states are x theta x_dot theta_dot
-% x_0=[0.000 0.000 0.000 0.000];
-x_goal=[0.0418943307156495,3.13458539312124,-0.0258471639582227,-0.00149878595768855];
+x_0=x_des(1,:);
+x_goal=x_des(end,:);
+u_des=u_des;
 u_goal = 0;
 
-Qf=1.*eye(4); Q=1.*eye(4);  % we have 2 states so Q vectors are 2X2
+Qf=1000.*eye(4); Q=1.*eye(4);  % we have 2 states so Q vectors are 2X2
 R=1;                   % only 1 control so R s are scalars
 % P_tf=Qf;p_tf=[1 1 1 1];
 P_tf=2*Qf;
@@ -34,7 +38,7 @@ p_tf=(2*Qf*ones(4,1))';
 
 % these are matching dimansions from the paper equation
 
-alpha_d=0.12;             % linesearch update
+alpha_d=1.2;             % linesearch update
 u_max=8;           % control cap
 
 % system_physical_parameters= [1;1;9.8;0.3]; % [mass; length; accln. due to gravity; damping]
@@ -48,12 +52,12 @@ J_now=999;
 figure(1)
 xlabel('Pole angle');
 ylabel('Pole ang. velocity');
-% hold all
+hold all
 
 % making the desired trajectories same as being at goal at all times
 x_nom=x_des;
 u_nom=u_des ;
-
+  plot(x_nom(:,2),x_nom(:,4),'r.-');
 x_des=repmat(x_goal,[max(size(x_des)),1]);
 u_des=zeros(max(size(u_des)),1);
  
@@ -157,6 +161,10 @@ title('cart phase plot')
 plot(x_nom(:,1),x_nom(:,3),'b.-');
 xlabel('cart position');
 ylabel('cart velocity');
+
+figure(4)
+x_nom=[x_nom;x_nom(end,:)];
+plot_cart_pole (x_nom',dt.*[1:1:n_steps+1]);
 end
 
 
@@ -350,7 +358,7 @@ for i=1:numel(x_des)
     if i~=n_wrap
         wrapped_state(i)=x_nom(i)-x_des(i);
     else
-        wrapped_state(i)=wrapToPi(x_nom(i)-x_des(i));
+        wrapped_state(i)=wrapTo2Pi(x_nom(i)-x_des(i));
     end
 end
 
